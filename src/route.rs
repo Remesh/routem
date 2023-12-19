@@ -1,16 +1,8 @@
-use std::backtrace::Backtrace;
-
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_while1},
-    character::complete::{alpha1, alphanumeric0},
-    combinator::recognize,
-    multi::separated_list0,
-    sequence::pair,
-    IResult,
-};
 use thiserror::Error;
 
+use crate::route::parse::parse_route;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Route<T> {
     pub name: String,
     pub path: Vec<Segment>,
@@ -38,66 +30,35 @@ pub enum ParamType {
 }
 
 #[derive(Error, Debug)]
-#[error("could not parse route")]
-pub struct ParseError {
-    message: String,
-    backtrace: Backtrace,
+pub enum ParseError {
+    #[error("unexpected input remaining")]
+    ExtraInput { segments: Vec<Segment>, remainder: String },
+
+    #[error("parse error: {0}")]
+    Other(String),
 }
+
+mod parse;
 
 impl<T> Route<T> {
-    pub fn parse(_s: &str) -> Result<Self, ParseError> {
-        todo!()
-    }
-}
+    pub fn parse(name: &str, s: &str, data: T) -> Result<Self, ParseError> {
+        let segments = match parse_route(s) {
+            Ok(("", segments)) => segments,
+            Ok((remainder, segments)) => {
+                return Err(ParseError::ExtraInput {
+                    segments,
+                    remainder: remainder.to_string(),
+                })
+            }
+            Err(e) => return Err(ParseError::Other(e.to_string())),
+        };
 
-pub fn parse_route(input: &str) -> IResult<&str, Vec<Segment>> {
-    let (input, _) = tag("/")(input)?;
-    separated_list0(tag("/"), segment)(input)
-}
-
-fn segment(input: &str) -> IResult<&str, Segment> {
-    alt((param, constant, empty))(input)
-}
-
-fn param(input: &str) -> IResult<&str, Segment> {
-    let (input, _) = tag("<")(input)?;
-
-    let (input, name) = identifier(input)?;
-    let (input, _) = tag(":")(input)?;
-    let (input, kind) = alt((tag("string"), tag("int"), tag("uuid")))(input)?;
-    let kind = match kind {
-        "string" => ParamType::String,
-        "int" => ParamType::Int,
-        "uuid" => ParamType::UUID,
-        _ => unreachable!(),
-    };
-
-    let (input, _) = tag(">")(input)?;
-
-    Ok((
-        input,
-        Segment::Param(Param {
+        Ok(Route {
             name: name.to_string(),
-            kind,
-        }),
-    ))
-}
-
-fn constant(input: &str) -> IResult<&str, Segment> {
-    recognize(take_while1(is_path_char))(input)
-        .map(|(input, s)| (input, Segment::Constant(s.to_string())))
-}
-
-fn is_path_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '-' || c == '_'
-}
-
-fn identifier(input: &str) -> IResult<&str, &str> {
-    recognize(pair(alpha1, alphanumeric0))(input)
-}
-
-fn empty(input: &str) -> IResult<&str, Segment> {
-    tag("")(input).map(|(input, _)| (input, Segment::Empty))
+            path: segments,
+            data,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -115,9 +76,54 @@ mod tests {
             }),
             Segment::Empty,
         ];
+        let name = "user-route";
 
-        let (input, output) = parse_route(input).expect("should parse");
-        assert_eq!(input, "");
-        assert_eq!(output, expected);
+
+        let route = Route::parse(name, input, ());
+        assert!(route.is_ok(), "{:#?}", route);
+        let route = route.unwrap();
+
+        assert_eq!(route.name, name);
+        assert_eq!(route.path, expected);
+    }
+
+    #[test]
+    fn test_parse_empty_route() {
+        let input = "/";
+        let expected = vec![Segment::Empty];
+        let name = "empty-route";
+
+        let route = Route::parse(name, input, ());
+        assert!(route.is_ok(), "{:#?}", route);
+        let route = route.unwrap();
+
+        assert_eq!(route.name, name);
+        assert_eq!(route.path, expected);
+
+    }
+
+    #[test]
+    fn test_parse_long_route() {
+        let input = "/user/<id:int>/profile/<profile_id:uuid>";
+        let expected = vec![
+            Segment::Constant("user".to_string()),
+            Segment::Param(Param {
+                name: "id".to_string(),
+                kind: ParamType::Int,
+            }),
+            Segment::Constant("profile".to_string()),
+            Segment::Param(Param {
+                name: "profile_id".to_string(),
+                kind: ParamType::UUID,
+            }),
+        ];
+        let name = "long-route";
+
+        let route = Route::parse(name, input, ());
+        assert!(route.is_ok(), "{:#?}", route);
+        let route = route.unwrap();
+
+        assert_eq!(route.name, name);
+        assert_eq!(route.path, expected);
     }
 }
