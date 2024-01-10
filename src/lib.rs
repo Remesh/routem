@@ -4,27 +4,27 @@ pub mod route;
 
 pub use route::Route;
 
-pub struct Routes<T> {
-    routes: Vec<Route<T>>,
+pub struct Routes {
+    routes: Vec<Route>,
 }
 
-impl<T> Routes<T> {
-    pub fn new() -> Routes<T> {
+impl Routes {
+    pub fn new() -> Routes {
         Routes {
             routes: Vec::new(),
         }
     }
 
-    pub fn add(&mut self, route: Route<T>) {
+    pub fn add(&mut self, route: Route) {
         self.routes.push(route);
     }
 
-    pub fn find_route(&self, _uri: &str) -> Option<Route<T>> {
+    pub fn find_route(&self, _uri: &str) -> Option<Route> {
         todo!()
     }
 }
 
-impl<T> Default for Routes<T> {
+impl Default for Routes {
     fn default() -> Self {
         Self::new()
     }
