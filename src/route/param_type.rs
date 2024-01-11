@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
 
-// TODO: how do we define these for non-builtin types, to make it extendable?
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamType {
     pub typename: &'static str,
@@ -36,7 +35,9 @@ pub const INT_PARAM: ParamType = ParamType {
     check: check_int,
 };
 
-pub static DEFAULT_PARAM_TYPES: Lazy<HashMap<&'static str, ParamType>> = Lazy::new(|| {
+pub type ParamMap = HashMap<&'static str, ParamType>;
+
+pub static DEFAULT_PARAM_TYPES: Lazy<ParamMap> = Lazy::new(|| {
     let mut m = HashMap::new();
     m.insert(STRING_PARAM.typename, STRING_PARAM);
     m.insert(UUID_PARAM.typename, UUID_PARAM);

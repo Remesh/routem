@@ -2,7 +2,7 @@
 
 pub mod route;
 
-pub use route::Route;
+pub use route::{Parser, Route};
 
 pub struct Routes {
     routes: Vec<Route>,
@@ -10,9 +10,7 @@ pub struct Routes {
 
 impl Routes {
     pub fn new() -> Routes {
-        Routes {
-            routes: Vec::new(),
-        }
+        Routes { routes: Vec::new() }
     }
 
     pub fn add(&mut self, route: Route) {
@@ -29,7 +27,6 @@ impl Default for Routes {
         Self::new()
     }
 }
-
 
 //#[cfg(test)]
 //mod tests {

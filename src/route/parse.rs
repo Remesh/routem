@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1, take_while_m_n},
@@ -9,49 +7,109 @@ use nom::{
     sequence::pair,
     Err, IResult,
 };
+use thiserror::Error;
 
-use super::{Param, ParamType, Segment};
+use crate::Route;
 
-pub fn parse_route(input: &str) -> IResult<&str, Vec<Segment>> {
-    let param_types = HashMap::new();
-    let (input, _) = tag("/")(input)?;
-    let (input, segments) = separated_list0(tag("/"), segment(param_types))(input)?;
+use super::{param_type::ParamMap, Param, Segment, ParamType};
 
-    Ok((input, segments))
+pub struct Parser {
+    param_types: ParamMap,
 }
 
-fn segment(param_types: &HashMap<&'static str, ParamType>) -> impl Fn(&str) -> IResult<&str, Segment> {
-    move |input| {
-        alt((param, constant, empty))(input)
+#[derive(Error, Debug)]
+pub enum ParseError {
+    #[error("unexpected input remaining")]
+    ExtraInput {
+        segments: Vec<Segment>,
+        remainder: String,
+    },
+
+    #[error("parse error: {0}")]
+    Other(String),
+}
+
+
+impl Default for Parser {
+    fn default() -> Self {
+        Self {
+            param_types: crate::route::param_type::DEFAULT_PARAM_TYPES.clone(),
+        }
     }
 }
-//fn segment(input: &str) -> IResult<&str, Segment> {
-//    alt((param, constant, empty))(input)
-//}
 
-fn param(input: &str) -> IResult<&str, Segment> {
-    let param_types: HashMap<String, ParamType> = HashMap::new();
+impl Parser {
+    pub fn new(param_types: ParamMap) -> Self {
+        Self { param_types }
+    }
 
-    let (input, _) = tag("<")(input)?;
+    pub fn add_param_type(&mut self, param_type: ParamType) {
+        self.param_types.insert(param_type.typename, param_type);
+    }
 
-    let (input, name) = identifier(input)?;
-    let (input, _) = tag(":")(input)?;
-    let (input, kind) = urlsafe_str(input)?;
-    let kind = if let Some(param_type) = param_types.get(kind) {
-        param_type.clone()
-    } else {
-        return Err(make_error(input));
-    };
+    /// Parse a route from a string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use routem::{Parser, Route};
+    /// let parser = Parser::default();
+    /// let route: Route = parser.route("user-route", "/user/<id:int>/").unwrap();
+    /// ```
+    pub fn route(&self, name: &str, path: &str) -> Result<Route, ParseError> {
+        let segments = match self.parse_route(path) {
+            Ok(("", segments)) => segments,
+            Ok((remainder, segments)) => {
+                return Err(ParseError::ExtraInput {
+                    segments,
+                    remainder: remainder.to_string(),
+                })
+            }
+            Err(e) => return Err(ParseError::Other(e.to_string())),
+        };
 
-    let (input, _) = tag(">")(input)?;
-
-    Ok((
-        input,
-        Segment::Param(Param {
+        Ok(Route {
             name: name.to_string(),
-            kind,
-        }),
-    ))
+            path: segments,
+        })
+    }
+}
+
+
+impl Parser {
+    fn parse_route<'a>(&self, input: &'a str) -> IResult<&'a str, Vec<Segment>> {
+        let (input, _) = tag("/")(input)?;
+        let (input, segments) = separated_list0(tag("/"), |i| self.segment(i))(input)?;
+
+        Ok((input, segments))
+    }
+
+    fn segment<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
+        alt((|i| self.param(i), constant, empty))(input)
+    }
+
+    fn param<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
+        let (input, _) = tag("<")(input)?;
+
+        let (input, name) = identifier(input)?;
+        let (input, _) = tag(":")(input)?;
+        let (input, kind) = urlsafe_str(input)?;
+        let kind = if let Some(param_type) = self.param_types.get(kind) {
+            param_type.clone()
+        } else {
+            return Err(make_error(input));
+        };
+
+        let (input, _) = tag(">")(input)?;
+
+        Ok((
+            input,
+            Segment::Param(Param {
+                name: name.to_string(),
+                kind,
+            }),
+        ))
+    }
 }
 
 fn constant(input: &str) -> IResult<&str, Segment> {
@@ -85,7 +143,7 @@ fn make_error(input: &str) -> Err<Error<&str>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::route::param_type::{self, DEFAULT_PARAM_TYPES};
+    use crate::route::param_type;
     use param_type::ParamType;
 
     use super::*;
@@ -108,7 +166,9 @@ mod tests {
             kind: param_type::INT_PARAM,
         });
 
-        let (input, output) = segment(&DEFAULT_PARAM_TYPES)(input).unwrap();
+        let parser = Parser::default();
+
+        let (input, output) = parser.segment(input).unwrap();
         assert_eq!(input, "");
         assert_eq!(output, expected);
     }
@@ -126,10 +186,13 @@ mod tests {
         };
         let expected = Segment::Param(Param {
             name: "arg".to_string(),
-            kind: custom_type,
+            kind: custom_type.clone(),
         });
 
-        let (input, output) = segment(&DEFAULT_PARAM_TYPES)(input).unwrap();
+        let mut parser = Parser::default();
+        parser.add_param_type(custom_type);
+
+        let (input, output) = parser.segment(input).unwrap();
         assert_eq!(input, "");
         assert_eq!(output, expected);
     }
