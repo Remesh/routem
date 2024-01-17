@@ -4,6 +4,7 @@ pub mod route;
 
 pub use route::{Parser, Route};
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Routes {
     routes: Vec<Route>,
 }
@@ -17,8 +18,8 @@ impl Routes {
         self.routes.push(route);
     }
 
-    pub fn find_route(&self, _uri: &str) -> Option<Route> {
-        todo!()
+    pub fn find(&self, path: &str) -> Option<&Route> {
+        self.routes.iter().find(|&route| route.check(path))
     }
 }
 
@@ -28,17 +29,33 @@ impl Default for Routes {
     }
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    #[test]
-//    fn test_routes() {
-//        let mut routes: Routes<u32> = Routes::new();
-//
-//        let user_route_spec = "/user/<id>/";
-//        let user_route = Route::parse(&user_route_spec).expect("route should parse");
-//
-//        routes.add(user_route);
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_routes() {
+        let mut routes: Routes = Routes::new();
+        let parser = Parser::default();
+
+        let user_route = parser
+            .route("user-by-id", "/user/<id:int>/")
+            .expect("route should parse");
+        let club_route = parser
+            .route("clu-by-id", "/club/<id:uuid>/")
+            .expect("route should parse");
+
+        routes.add(user_route.clone());
+        routes.add(club_route.clone());
+
+        assert_eq!(None, routes.find("/user/abc/"));
+        assert_eq!(Some(&user_route), routes.find("/user/123/"));
+        assert_eq!(None, routes.find("/club//"));
+        assert_eq!(None, routes.find("/club/abc/"));
+        assert_eq!(None, routes.find("/club/123/"));
+        assert_eq!(
+            Some(&club_route),
+            routes.find("/club/36be8705-6c31-45d7-9321-d56cc07b50d9/")
+        );
+    }
+}
