@@ -11,7 +11,10 @@ use thiserror::Error;
 
 use crate::Route;
 
-use super::{param_type::ParamMap, Param, Segment, ParamType};
+use super::{
+    param_type::{ParamMap, STRING_PARAM},
+    Param, ParamType, Segment,
+};
 
 pub struct Parser {
     param_types: ParamMap,
@@ -29,7 +32,6 @@ pub enum ParseError {
     Other(String),
 }
 
-
 impl Default for Parser {
     fn default() -> Self {
         Self {
@@ -39,7 +41,11 @@ impl Default for Parser {
 }
 
 impl Parser {
-    pub fn new(param_types: ParamMap) -> Self {
+    pub fn new(mut param_types: ParamMap) -> Self {
+        if !param_types.contains_key("string") {
+            param_types.insert("string", STRING_PARAM);
+        }
+
         Self { param_types }
     }
 
@@ -75,7 +81,6 @@ impl Parser {
     }
 }
 
-
 impl Parser {
     fn parse_route<'a>(&self, input: &'a str) -> IResult<&'a str, Vec<Segment>> {
         let (input, _) = tag("/")(input)?;
@@ -85,10 +90,15 @@ impl Parser {
     }
 
     fn segment<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
-        alt((|i| self.param(i), constant, empty))(input)
+        alt((
+            |i| self.typed_param(i),
+            |i| self.untyped_param(i),
+            constant,
+            empty,
+        ))(input)
     }
 
-    fn param<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
+    fn typed_param<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
         let (input, _) = tag("<")(input)?;
 
         let (input, name) = identifier(input)?;
@@ -107,6 +117,20 @@ impl Parser {
             Segment::Param(Param {
                 name: name.to_string(),
                 kind,
+            }),
+        ))
+    }
+
+    fn untyped_param<'a>(&self, input: &'a str) -> IResult<&'a str, Segment> {
+        let (input, _) = tag("<")(input)?;
+        let (input, name) = identifier(input)?;
+        let (input, _) = tag(">")(input)?;
+
+        Ok((
+            input,
+            Segment::Param(Param {
+                name: name.to_string(),
+                kind: self.param_types["string"].clone(),
             }),
         ))
     }

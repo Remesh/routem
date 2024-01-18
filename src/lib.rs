@@ -1,5 +1,3 @@
-#![feature(error_generic_member_access)]
-
 pub mod route;
 
 pub use route::{Parser, Route};
@@ -42,11 +40,15 @@ mod tests {
             .route("user-by-id", "/user/<id:int>/")
             .expect("route should parse");
         let club_route = parser
-            .route("clu-by-id", "/club/<id:uuid>/")
+            .route("club-by-id", "/club/<id:uuid>/")
+            .expect("route should parse");
+        let game_route = parser
+            .route("game", "/game/<slug>/")
             .expect("route should parse");
 
         routes.add(user_route.clone());
         routes.add(club_route.clone());
+        routes.add(game_route.clone());
 
         assert_eq!(None, routes.find("/user/abc/"));
         assert_eq!(Some(&user_route), routes.find("/user/123/"));
@@ -57,5 +59,9 @@ mod tests {
             Some(&club_route),
             routes.find("/club/36be8705-6c31-45d7-9321-d56cc07b50d9/")
         );
+        assert_eq!(Some(&game_route), routes.find("/game/123/"));
+        assert_eq!(Some(&game_route), routes.find("/game//"));
+        assert_eq!(Some(&game_route), routes.find("/game/abc/"));
+        assert_eq!(None, routes.find("/game/123"));
     }
 }
