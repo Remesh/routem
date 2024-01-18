@@ -3,6 +3,7 @@ name = "routem"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+description = "HTTP path and route matching with type-aware parameters"
 homepage = "https://github.com/Remesh/routem"
 repository = "https://github.com/Remesh/routem"
 
