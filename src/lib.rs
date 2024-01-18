@@ -29,6 +29,8 @@ impl Default for Routes {
 
 #[cfg(test)]
 mod tests {
+    use crate::route::ParamType;
+
     use super::*;
 
     #[test]
@@ -63,5 +65,31 @@ mod tests {
         assert_eq!(Some(&game_route), routes.find("/game//"));
         assert_eq!(Some(&game_route), routes.find("/game/abc/"));
         assert_eq!(None, routes.find("/game/123"));
+    }
+
+    #[test]
+    fn test_parses_custom_types() {
+        fn is_palindrome(ident: &str) -> bool {
+            ident.chars().rev().collect::<String>() == ident
+        }
+
+        let palindromic_type = ParamType::new("palindrome", is_palindrome);
+
+        let mut routes: Routes = Routes::new();
+        let mut parser = Parser::default();
+        parser.add_param_type(palindromic_type);
+
+        let user_route = parser
+            .route("user-by-id", "/user/<id:int>/")
+            .expect("route should parse");
+        let club_route = parser
+            .route("club-by-id", "/club/<id:palindrome>/")
+            .expect("route should parse");
+
+        routes.add(user_route.clone());
+        routes.add(club_route.clone());
+
+        assert_eq!(None, routes.find("/club/myclub/"));
+        assert_eq!(Some(&club_route), routes.find("/club/radar/"));
     }
 }

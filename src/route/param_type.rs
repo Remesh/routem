@@ -8,6 +8,12 @@ pub struct ParamType {
     pub check: fn(&str) -> bool,
 }
 
+impl ParamType {
+    pub fn new(typename: &'static str, check: fn(&str) -> bool) -> ParamType {
+        ParamType { typename, check }
+    }
+}
+
 pub fn check_str(_s: &str) -> bool {
     true
 }
@@ -17,7 +23,7 @@ pub fn check_uuid(s: &str) -> bool {
 }
 
 pub fn check_int(s: &str) -> bool {
-    s.parse::<i64>().is_ok()
+    s.parse::<u64>().is_ok()
 }
 
 pub const STRING_PARAM: ParamType = ParamType {
