@@ -89,9 +89,9 @@ impl Route {
     /// let parser = Parser::default();
     /// let route = parser.route("user-route", "/user/<id:int>/").unwrap();
     ///
-    /// assert_eq!(route.params("/user/123/"), Some(vec!["123".to_string()]));
+    /// assert_eq!(route.parse_params("/user/123/"), Some(vec!["123".to_string()]));
     /// ```
-    pub fn params(&self, path: &str) -> Option<Vec<String>> {
+    pub fn parse_params(&self, path: &str) -> Option<Vec<String>> {
         let clean_path: &str = path.strip_prefix('/').unwrap_or(path);
         let parts = clean_path.split('/').collect::<Vec<&str>>();
 
@@ -119,6 +119,61 @@ impl Route {
         }
 
         Some(params)
+    }
+
+    /// Fills the supplies parameters into the route. Returns None if the
+    /// provided params are the incorrect length.
+    ///
+    /// # Examples
+    /// ```
+    /// use routem::{Parser, Route};
+    ///
+    /// let parser = Parser::default();
+    ///
+    /// let route = parser.route("user-route", "/user/<id:int>/").unwrap();
+    /// let params = vec!["123".to_string()];
+    /// assert_eq!(route.fill(&params), Some("/user/123/".to_string()));
+    ///
+    /// let route = parser.route("long-route", "/user/<id:int>/profile/<profile_id:uuid>").unwrap();
+    /// let params = vec!["123".to_string(), "abc".to_string()];
+    /// assert_eq!(route.fill(&params), Some("/user/123/profile/abc".to_string()));
+    ///
+    /// let route = parser.route("empty-route", "/").unwrap();
+    /// let params = vec![];
+    /// assert_eq!(route.fill(&params), Some("/".to_string()));
+    ///
+    /// let route = parser.route("user-route", "/user/<id:int>/").unwrap();
+    /// let params = vec![];
+    /// assert_eq!(route.fill(&params), None);
+    /// let params = vec!["123".to_string(), "abc".to_string()];
+    /// assert_eq!(route.fill(&params), None);
+    /// ```
+    pub fn fill(&self, params: &[String]) -> Option<String> {
+        let mut path = String::new();
+
+        let mut index = 0;
+
+        for segment in self.path.iter() {
+            path.push('/');
+            match segment {
+                Segment::Empty => {}
+                Segment::Constant(s) => {
+                    path.push_str(s);
+                }
+                Segment::Param(_) => {
+                    if index >= params.len() {
+                        return None;
+                    }
+                    path.push_str(&params[index]);
+                    index += 1;
+                }
+            }
+        }
+        if index < params.len() {
+            return None;
+        }
+
+        Some(path)
     }
 }
 
