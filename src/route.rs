@@ -77,6 +77,49 @@ impl Route {
 
         true
     }
+
+    /// If a path matches the route, returns the matching params. Otherwise,
+    /// returns None.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use routem::{Parser, Route};
+    ///
+    /// let parser = Parser::default();
+    /// let route = parser.route("user-route", "/user/<id:int>/").unwrap();
+    ///
+    /// assert_eq!(route.params("/user/123/"), Some(vec!["123".to_string()]));
+    /// ```
+    pub fn params(&self, path: &str) -> Option<Vec<String>> {
+        let clean_path: &str = path.strip_prefix('/').unwrap_or(path);
+        let parts = clean_path.split('/').collect::<Vec<&str>>();
+
+        if parts.len() != self.path.len() {
+            return None;
+        }
+
+        let mut params = Vec::new();
+        for (part, segment) in parts.iter().zip(self.path.iter()) {
+            match segment {
+                Segment::Empty => {
+                    if !part.is_empty() {
+                        return None;
+                    }
+                }
+                Segment::Constant(s) => {
+                    if part != s {
+                        return None;
+                    }
+                }
+                Segment::Param(_) => {
+                    params.push(part.to_string());
+                }
+            }
+        }
+
+        Some(params)
+    }
 }
 
 #[cfg(test)]
